@@ -1,7 +1,7 @@
 name: Build BlackBox engine
 
 on:
-  workflow_dispatch: # run it by hand from the Actions tab
+  workflow_dispatch:
 
 jobs:
   build:
@@ -10,20 +10,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Bcore is compiled with Java 21 (sourceCompatibility VERSION_21)
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
 
-      - uses: android-actions/setup-android@v3
-
-      # compileSdk 35 and NDK 29.0.13846066 come from the project's own build files
       - name: Install SDK platform and NDK
         run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;29.0.13846066"
+          SDKM=$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager
+          yes | $SDKM --licenses > /dev/null || true
+          $SDKM "platforms;android-35" "build-tools;35.0.0" "ndk;29.0.13846066"
 
-      # Bcore (the engine) + black-reflection (a library that Bcore depends on at runtime)
       - name: Build engine libraries
         run: |
           chmod +x gradlew
@@ -35,11 +32,9 @@ jobs:
           cp -v Bcore/build/outputs/aar/*.aar out/ || true
           cp -v black-reflection/build/outputs/aar/*.aar out/ || true
           cp -v black-reflection/build/libs/*.jar out/ || true
-          echo "Collected:"
           ls -la out
 
       - uses: actions/upload-artifact@v4
         with:
           name: blackbox-outputs
           path: out
-          
