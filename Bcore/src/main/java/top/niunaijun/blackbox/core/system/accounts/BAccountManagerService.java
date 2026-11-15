@@ -1775,10 +1775,28 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
 
 
 
-            if (!mContext.bindService(intent, this, flags)) {
-                if (Log.isLoggable(TAG, Log.VERBOSE)) {
-                    Log.v(TAG, "bindService to " + componentName + " failed");
+            // DIAG (temporary): Log.e so the app's log saver (which keeps E lines) captures it.
+            int diagUser = userIdOf(mAccounts);
+            try {
+                ResolveInfo diagInfo = mPms.resolveService(intent, 0, null, diagUser);
+                Log.e("BAcctDiag", "bind " + componentName + " user=" + diagUser
+                        + " type=" + authenticatorType
+                        + " resolveInPlace=" + (diagInfo != null)
+                        + " thread=" + Thread.currentThread().getName());
+            } catch (Throwable t) {
+                Log.e("BAcctDiag", "resolveService threw: " + t);
+            }
+
+            try {
+                if (!mContext.bindService(intent, this, flags)) {
+                    Log.e("BAcctDiag", "bindService returned false for " + componentName + " user=" + diagUser);
+                    return false;
                 }
+            } catch (SecurityException e) {
+                // Real system refused the bind. Log why and fail this session cleanly
+                // instead of crashing the calling process (GMS).
+                Log.e("BAcctDiag", "bindService SecurityException for " + componentName
+                        + " user=" + diagUser + ": " + e.getMessage(), e);
                 return false;
             }
 
