@@ -1445,6 +1445,8 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         private int mNumErrors = 0;
 
         IAccountAuthenticator mAuthenticator = null;
+        /** User id the engine tracked this bind under, or -1 when bound directly. */
+        private int mEngineBindUser = -1;
 
         private final boolean mStripAuthTokenFromResult;
         protected final BUserAccounts mAccounts;
@@ -1569,6 +1571,15 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
             if (mAuthenticator != null) {
                 mAuthenticator = null;
                 mContext.unbindService(this);
+                if (mEngineBindUser >= 0) {
+                    try {
+                        top.niunaijun.blackbox.core.system.am.BActivityManagerService.get()
+                                .unbindService(this.asBinder(), mEngineBindUser);
+                    } catch (Throwable t) {
+                        Log.e("BAcctDiag", "engine unbindService threw: " + t);
+                    }
+                    mEngineBindUser = -1;
+                }
             }
         }
 
@@ -1787,8 +1798,24 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
                 Log.e("BAcctDiag", "resolveService threw: " + t);
             }
 
+            // The real system refuses a direct bind to the cloned authenticator (this code runs in the
+            // host/server process, where the AM hook does not rewrite the Intent). Go through the engine
+            // like BindServiceCommon does: ask it for the proxy Intent and bind to that.
+            Intent bindIntent = intent;
             try {
-                if (!mContext.bindService(intent, this, flags)) {
+                Intent proxy = top.niunaijun.blackbox.core.system.am.BActivityManagerService.get()
+                        .bindService(intent, this.asBinder(), null, diagUser);
+                Log.e("BAcctDiag", "engine proxy intent=" + proxy);
+                if (proxy != null) {
+                    bindIntent = proxy;
+                    mEngineBindUser = diagUser;
+                }
+            } catch (Throwable t) {
+                Log.e("BAcctDiag", "engine bindService threw, falling back to direct bind: " + t, t);
+            }
+
+            try {
+                if (!mContext.bindService(bindIntent, this, flags)) {
                     Log.e("BAcctDiag", "bindService returned false for " + componentName + " user=" + diagUser);
                     return false;
                 }
