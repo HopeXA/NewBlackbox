@@ -1471,18 +1471,8 @@ public class BlackBoxCore extends ClientConfiguration {
     }
 
     private void initNotificationManager() {
-        NotificationManager nm = (NotificationManager) BlackBoxCore.getContext().getSystemService(Context.NOTIFICATION_SERVICE);
-        String CHANNEL_ONE_ID = BlackBoxCore.getContext().getPackageName() + ".blackbox_core";
-        String CHANNEL_ONE_NAME = "blackbox_core";
-        if (BuildCompat.isOreo()) {
-            NotificationChannel notificationChannel = new NotificationChannel(CHANNEL_ONE_ID,
-                    CHANNEL_ONE_NAME, NotificationManager.IMPORTANCE_HIGH);
-            notificationChannel.enableLights(true);
-            notificationChannel.setLightColor(Color.RED);
-            notificationChannel.setShowBadge(true);
-            notificationChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
-            nm.createNotificationChannel(notificationChannel);
-        }
+        // Intentionally empty: the unused "blackbox_core" channel was removed.
+        // Real channels: DaemonService (background service) and NotificationChannelManager (cloned apps).
     }
 
     public void closeCodeInit(){
@@ -1683,7 +1673,7 @@ public class BlackBoxCore extends ClientConfiguration {
     private void initVpnService() {
         try {
             
-            if (mClientConfiguration == null || !mClientConfiguration.isUseVpnNetwork()) {
+            if (true) { // VPN support removed (Google Play: VpnService is for VPN apps only)
                 Slog.d(TAG, "VPN network mode disabled, using normal network");
                 return;
             }
