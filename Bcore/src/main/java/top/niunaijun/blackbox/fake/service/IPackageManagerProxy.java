@@ -133,12 +133,12 @@ public class IPackageManagerProxy extends BinderInvocationStub {
             String packageName = (String) args[0];
             int flags = MethodParameterUtils.toInt(args[1]);
             
-            
-            if ("com.android.vending".equals(packageName)) {
+            PackageInfo packageInfo = BlackBoxCore.getBPackageManager().getPackageInfo(packageName, flags, BlackBoxCore.getUserId());
+            // Use the real Play Store info installed in the clone (it carries signatures and permissions).
+            // The fake one is only a fallback when the clone has no Play Store at all.
+            if (packageInfo == null && "com.android.vending".equals(packageName)) {
                 return createFakeGooglePlayServicesPackageInfo();
             }
-            
-            PackageInfo packageInfo = BlackBoxCore.getBPackageManager().getPackageInfo(packageName, flags, BlackBoxCore.getUserId());
             if (packageInfo != null) {
                 
                 if (packageInfo.requestedPermissions != null && packageInfo.requestedPermissionsFlags != null) {
