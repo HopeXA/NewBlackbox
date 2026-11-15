@@ -216,12 +216,62 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+    /** DIAG (temporary): which identity questions do Google's processes ask about the caller? Pass-through, logs only. */
+    private static int idDiagCount = 0;
+
+    private static void idDiag(String what, Object[] args, Object result) {
+        try {
+            String proc = BActivityThread.getAppProcessName();
+            if (proc == null || !(proc.startsWith("com.google.android.gms") || proc.startsWith("com.google.android.gsf")
+                    || proc.startsWith("com.android.vending"))) return;
+            if (idDiagCount >= 60) return;
+            idDiagCount++;
+            Log.e("BSigDiag", what + Arrays.toString(args) + " -> "
+                    + (result instanceof Object[] ? Arrays.toString((Object[]) result) : String.valueOf(result))
+                    + " in " + proc + " host=" + BlackBoxCore.getHostUid());
+        } catch (Throwable t) {
+            Log.e("BSigDiag", "idDiag failed: " + t);
+        }
+    }
+
+    @ProxyMethod("getNameForUid")
+    public static class GetNameForUid extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            Object r = method.invoke(who, args);
+            idDiag("getNameForUid", args, r);
+            return r;
+        }
+    }
+
+    @ProxyMethod("checkUidSignatures")
+    public static class CheckUidSignatures extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            Object r = method.invoke(who, args);
+            idDiag("checkUidSignatures", args, r);
+            return r;
+        }
+    }
+
+    @ProxyMethod("checkSignatures")
+    public static class CheckSignatures extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            Object r = method.invoke(who, args);
+            idDiag("checkSignatures", args, r);
+            return r;
+        }
+    }
+
     @ProxyMethod("getPackageUid")
     public static class GetPackageUid extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             MethodParameterUtils.replaceFirstAppPkg(args);
-            return method.invoke(who, args);
+            Object r = method.invoke(who, args);
+            idDiag("getPackageUid", args, r);
+            return r;
         }
     }
 
