@@ -227,53 +227,9 @@ public class XiaomiPermissionManager {
     
     
     private void createNotificationChannels() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            return;
-        }
-        
-        Context context = BlackBoxCore.getContext();
-        NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
-        
-        if (notificationManager == null) {
-            Slog.w(TAG, "NotificationManager not available");
-            return;
-        }
-        
-        try {
-            
-            android.app.NotificationChannel mainChannel = new android.app.NotificationChannel(
-                "blackbox_main",
-                "BlackBox Core",
-                NotificationManager.IMPORTANCE_HIGH
-            );
-            mainChannel.setDescription("Core BlackBox functionality notifications");
-            mainChannel.enableLights(true);
-            mainChannel.enableVibration(true);
-            mainChannel.setShowBadge(true);
-            
-            notificationManager.createNotificationChannel(mainChannel);
-            Slog.d(TAG, "Created main notification channel");
-            
-            
-            android.app.NotificationChannel backgroundChannel = new android.app.NotificationChannel(
-                "blackbox_background",
-                "BlackBox Background",
-                NotificationManager.IMPORTANCE_LOW
-            );
-            backgroundChannel.setDescription("Background service notifications");
-            backgroundChannel.enableLights(false);
-            backgroundChannel.enableVibration(false);
-            backgroundChannel.setShowBadge(false);
-            
-            notificationManager.createNotificationChannel(backgroundChannel);
-            Slog.d(TAG, "Created background notification channel");
-            
-        } catch (Exception e) {
-            Slog.e(TAG, "Failed to create notification channels: " + e.getMessage());
-        }
+        // Removed: the "BlackBox Core" / "BlackBox Background" channels were unused and confusing.
     }
-    
-    
+
     private void disableBatteryOptimization() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             return;
