@@ -354,12 +354,36 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             int uid = (Integer) args[0];
-            if (uid == BlackBoxCore.getHostUid()) {
+            boolean wasHostUid = (uid == BlackBoxCore.getHostUid());
+            if (wasHostUid) {
                 args[0] = BActivityThread.getBUid();
                 uid = (int) args[0];
             }
             String[] packagesForUid = BlackBoxCore.getBPackageManager().getPackagesForUid(uid);
-            Slog.d(TAG, args[0] + " , " + BActivityThread.getAppProcessName() + " GetPackagesForUid: " + Arrays.toString(packagesForUid));
+            // Every virtual app calls Binder with the host's real uid, so Google's services
+            // (GMS/GSF/Play) cannot tell which virtual package is calling and check
+            // "does package X belong to uid 10xxx?". Inside those processes, answer with the
+            // packages of the whole clone (own list first) so that check can succeed.
+            String proc = BActivityThread.getAppProcessName();
+            if (wasHostUid && proc != null && (proc.startsWith("com.google.android.gms")
+                    || proc.startsWith("com.google.android.gsf")
+                    || proc.startsWith("com.android.vending"))) {
+                try {
+                    java.util.LinkedHashSet<String> all = new java.util.LinkedHashSet<>();
+                    if (packagesForUid != null) all.addAll(Arrays.asList(packagesForUid));
+                    List<PackageInfo> installed = BlackBoxCore.getBPackageManager()
+                            .getInstalledPackages(0, BlackBoxCore.getUserId());
+                    if (installed != null) {
+                        for (PackageInfo pi : installed) {
+                            if (pi != null && pi.packageName != null) all.add(pi.packageName);
+                        }
+                    }
+                    packagesForUid = all.toArray(new String[0]);
+                } catch (Throwable t) {
+                    Slog.w(TAG, "GetPackagesForUid: could not expand package list", t);
+                }
+            }
+            Slog.d(TAG, args[0] + " , " + proc + " GetPackagesForUid: " + Arrays.toString(packagesForUid));
             return packagesForUid;
         }
     }
