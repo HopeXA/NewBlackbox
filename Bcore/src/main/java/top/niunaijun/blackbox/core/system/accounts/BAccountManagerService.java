@@ -799,7 +799,7 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         if (account == null || tokenType == null || callerPkg == null) {
             return;
         }
-        TokenCache cache = new TokenCache(accounts.userId, account, callerPkg, tokenType, token, expiryMillis);
+        TokenCache cache = new TokenCache(userIdOf(accounts), account, callerPkg, tokenType, token, expiryMillis);
         synchronized (mTokenCaches) {
             mTokenCaches.add(cache);
         }
@@ -826,7 +826,7 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
             while (iterator.hasNext()) {
                 TokenCache next = iterator.next();
 
-                if (next.userId == accounts.userId && next.account.equals(account) && next.authTokenType.equals(tokenType) && next.packageName.equals(callingPackage)) {
+                if (next.userId == userIdOf(accounts) && next.account.equals(account) && next.authTokenType.equals(tokenType) && next.packageName.equals(callingPackage)) {
                     if (next.expiryEpochMillis > nowTime) {
                         return next.authToken;
                     } else {
@@ -1167,6 +1167,20 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
         }
     }
 
+    /**
+     * The real user id of [accounts]. BUserAccounts created with "new BUserAccounts()" never get their
+     * userId field set (it stays 0), so every clone was treated as user 0 when binding to authenticators.
+     * The map key is the reliable source.
+     */
+    private int userIdOf(BUserAccounts accounts) {
+        synchronized (mUserAccountsMap) {
+            for (Map.Entry<Integer, BUserAccounts> e : mUserAccountsMap.entrySet()) {
+                if (e.getValue() == accounts) return e.getKey();
+            }
+        }
+        return accounts.userId;
+    }
+
     private boolean isAccountPresentForCaller(String accountName, String accountType, int userId) {
         BUserAccounts userAccounts = getUserAccounts(userId);
         if (userAccounts != null) {
@@ -1494,7 +1508,7 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
                     | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION));
             long bid = Binder.clearCallingIdentity();
             try {
-                ResolveInfo resolveInfo = mPms.resolveActivity(intent, 0, null, mAccounts.userId);
+                ResolveInfo resolveInfo = mPms.resolveActivity(intent, 0, null, userIdOf(mAccounts));
                 if (resolveInfo == null) {
                     return false;
                 }
@@ -1623,7 +1637,7 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
                 boolean needUpdate = mUpdateLastAuthenticatedTime
                         && (isSuccessfulConfirmCreds || isSuccessfulUpdateCredsOrAddAccount);
                 if (needUpdate || mAuthDetailsRequired) {
-                    boolean accountPresent = isAccountPresentForCaller(mAccountName, mAccountType, mAccounts.userId);
+                    boolean accountPresent = isAccountPresentForCaller(mAccountName, mAccountType, userIdOf(mAccounts));
                     if (needUpdate && accountPresent) {
                         updateLastAuthenticatedTime(mAccounts, new Account(mAccountName, mAccountType));
                     }
@@ -1752,7 +1766,7 @@ public class BAccountManagerService extends IBAccountManagerService.Stub impleme
             ComponentName componentName = new ComponentName(authenticatorInfo.serviceInfo.packageName, authenticatorInfo.serviceInfo.name);
             intent.setComponent(componentName);
             
-            intent.putExtra("_B_|_UserId", mAccounts.userId);
+            intent.putExtra("_B_|_UserId", userIdOf(mAccounts));
 
             if (Log.isLoggable(TAG, Log.VERBOSE)) {
                 Log.v(TAG, "performing bindService to " + componentName);
