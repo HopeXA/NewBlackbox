@@ -152,6 +152,7 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                         || ((String) auth).contains("com.android.vending")
                         || ((String) auth).contains("com.google.android.gsf")
                         || auth.equals("com.google.android.gms.chimera")
+                        || auth.equals("com.google.settings")
                         || auth.equals("com.huawei.android.launcher.settings")
                         || auth.equals("com.hihonor.android.launcher.settings")) {
                     content = method.invoke(who, args);
