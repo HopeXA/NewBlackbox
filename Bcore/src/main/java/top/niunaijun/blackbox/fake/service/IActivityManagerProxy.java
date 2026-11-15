@@ -589,6 +589,12 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                     args[i] = null;
                 }
             }
+            // userId is the last argument. Negative ids (USER_ALL = -1, USER_CURRENT = -2) need
+            // INTERACT_ACROSS_USERS for a normal app, so send to the app's own real user instead.
+            if (args.length > 0 && args[args.length - 1] instanceof Integer
+                    && ((Integer) args[args.length - 1]) < 0) {
+                args[args.length - 1] = android.os.Process.myUid() / 100000;
+            }
             return method.invoke(who, args);
         }
 
