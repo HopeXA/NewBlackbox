@@ -139,6 +139,7 @@ public class IPackageManagerProxy extends BinderInvocationStub {
             if (packageInfo == null && "com.android.vending".equals(packageName)) {
                 return createFakeGooglePlayServicesPackageInfo();
             }
+            sigDiag(packageName, flags, packageInfo);
             if (packageInfo != null) {
                 
                 if (packageInfo.requestedPermissions != null && packageInfo.requestedPermissionsFlags != null) {
@@ -160,6 +161,43 @@ public class IPackageManagerProxy extends BinderInvocationStub {
             return null;
         }
         
+        private static int sigDiagCount = 0;
+
+        /** DIAG (temporary): what signatures Google's own processes get for Google packages. Log.e so the log saver keeps it. */
+        private static void sigDiag(String packageName, int flags, PackageInfo pi) {
+            try {
+                if (packageName == null) return;
+                if (!(packageName.equals("com.android.vending") || packageName.equals("com.google.android.gms")
+                        || packageName.equals("com.google.android.gsf"))) return;
+                String proc = BActivityThread.getAppProcessName();
+                if (proc == null || !(proc.startsWith("com.google.android.gms") || proc.startsWith("com.android.vending")
+                        || proc.startsWith("com.google.android.gsf"))) return;
+                if (sigDiagCount >= 40) return;
+                sigDiagCount++;
+                StringBuilder sb = new StringBuilder("pkg=" + packageName + " proc=" + proc
+                        + " flags=0x" + Integer.toHexString(flags) + " info=" + (pi != null));
+                if (pi != null) {
+                    int n = pi.signatures == null ? -1 : pi.signatures.length;
+                    sb.append(" signatures=").append(n);
+                    if (n > 0) {
+                        byte[] h = java.security.MessageDigest.getInstance("SHA-256").digest(pi.signatures[0].toByteArray());
+                        sb.append(" sig0=");
+                        for (int i = 0; i < 6; i++) sb.append(String.format("%02x", h[i]));
+                    }
+                    if (Build.VERSION.SDK_INT >= 28) {
+                        sb.append(" signingInfo=").append(pi.signingInfo != null);
+                        if (pi.signingInfo != null && pi.signingInfo.getApkContentsSigners() != null) {
+                            sb.append(" signers=").append(pi.signingInfo.getApkContentsSigners().length);
+                        }
+                    }
+                    sb.append(" uid=").append(pi.applicationInfo != null ? pi.applicationInfo.uid : -1);
+                }
+                Log.e("BSigDiag", sb.toString());
+            } catch (Throwable t) {
+                Log.e("BSigDiag", "diag failed: " + t);
+            }
+        }
+
         private PackageInfo createFakeGooglePlayServicesPackageInfo() {
             PackageInfo packageInfo = new PackageInfo();
             packageInfo.packageName = "com.android.vending";
@@ -351,6 +389,8 @@ public class IPackageManagerProxy extends BinderInvocationStub {
 
     @ProxyMethod("getPackagesForUid")
     public static class GetPackagesForUid extends MethodHook {
+        private static int uidDiagCount = 0;
+
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             int uid = (Integer) args[0];
@@ -384,6 +424,10 @@ public class IPackageManagerProxy extends BinderInvocationStub {
                 }
             }
             Slog.d(TAG, args[0] + " , " + proc + " GetPackagesForUid: " + Arrays.toString(packagesForUid));
+            if (wasHostUid && proc != null && proc.startsWith("com.google.android.gms") && uidDiagCount < 8) {
+                uidDiagCount++;
+                Log.e("BSigDiag", "getPackagesForUid(host) in " + proc + " -> " + Arrays.toString(packagesForUid));
+            }
             return packagesForUid;
         }
     }
