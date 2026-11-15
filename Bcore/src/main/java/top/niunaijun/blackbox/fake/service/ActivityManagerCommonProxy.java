@@ -78,7 +78,7 @@ public class ActivityManagerCommonProxy {
                     GET_META_DATA,
                     StartActivityCompat.getResolvedType(args),
                     BActivityThread.getUserId());
-            if (resolveInfo == null) {
+            if (resolveInfo == null || resolveInfo.activityInfo == null) {
                 String origPackage = intent.getPackage();
                 if (intent.getPackage() == null && intent.getComponent() == null) {
                     intent.setPackage(BActivityThread.getAppPackageName());
@@ -90,7 +90,7 @@ public class ActivityManagerCommonProxy {
                         GET_META_DATA,
                         StartActivityCompat.getResolvedType(args),
                         BActivityThread.getUserId());
-                if (resolveInfo == null) {
+                if (resolveInfo == null || resolveInfo.activityInfo == null) {
                     intent.setPackage(origPackage);
                     return method.invoke(who, args);
                 }
