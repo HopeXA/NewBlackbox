@@ -802,6 +802,13 @@ public class IActivityManagerProxy extends ClassInvocationStub {
                 Slog.d(TAG, "ActivityManager checkPermission: Granting storage/media permission: " + permission);
                 return PackageManager.PERMISSION_GRANTED;
             }
+
+            if (Manifest.permission.INTERNET.equals(permission)
+                    || Manifest.permission.ACCESS_NETWORK_STATE.equals(permission)
+                    || Manifest.permission.ACCESS_WIFI_STATE.equals(permission)) {
+                Slog.d(TAG, "ActivityManager checkPermission: Granting network permission: " + permission);
+                return PackageManager.PERMISSION_GRANTED;
+            }
             
             return method.invoke(who, args);
         }
