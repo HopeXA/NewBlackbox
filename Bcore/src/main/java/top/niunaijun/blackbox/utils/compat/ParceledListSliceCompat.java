@@ -1,12 +1,8 @@
 package top.niunaijun.blackbox.utils.compat;
 
-import android.os.Parcel;
-import android.os.Parcelable;
-
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.Collections;
 import java.util.List;
 
 import black.android.content.pm.BRParceledListSlice;
@@ -14,40 +10,21 @@ import black.android.content.pm.BRParceledListSlice;
 public class ParceledListSliceCompat {
 
 	public static boolean isReturnParceledListSlice(Method method) {
-		return method != null && isParceledListSliceClass(method.getReturnType());
+		return method != null && method.getReturnType() == BRParceledListSlice.getRealClass();
 	}
 
 	public static boolean isParceledListSlice(Object obj) {
-		return obj != null && isParceledListSliceClass(obj.getClass());
-	}
-
-	private static boolean isParceledListSliceClass(Class<?> clazz) {
-		if (clazz == null) {
-			return false;
-		}
-		Class<?> baseClass = BRParceledListSlice.getRealClass();
-		if (baseClass != null && baseClass.isAssignableFrom(clazz)) {
-			return true;
-		}
-		try {
-			Class<?> baseParceledClass = Class.forName("android.content.pm.BaseParceledListSlice");
-			if (baseParceledClass.isAssignableFrom(clazz)) {
-				return true;
-			}
-		} catch (Throwable ignored) {
-		}
-		return false;
+		return obj != null && obj.getClass() == BRParceledListSlice.getRealClass();
 	}
 
 	public static Object create(List<?> list) {
-		List<?> safeList = list != null ? list : Collections.emptyList();
-		Object slice = BRParceledListSlice.get()._new(safeList);
+		Object slice = BRParceledListSlice.get()._new(list);
 		if (slice != null) {
 			return slice;
 		} else {
 			slice = BRParceledListSlice.get()._new();
 		}
-		for (Object item : safeList) {
+		for (Object item : list) {
 			BRParceledListSlice.get(slice).append(item);
 		}
 		BRParceledListSlice.get(slice).setLastSlice(true);
@@ -55,109 +32,72 @@ public class ParceledListSliceCompat {
 	}
 
 	public static Object create(Method method, List<?> list) {
-		List<?> safeList = list != null ? list : Collections.emptyList();
-		if (method == null) {
-			return create(safeList);
+		if (method != null) {
+			Class<?> returnType = method.getReturnType();
+			Class<?> parceledClass = BRParceledListSlice.getRealClass();
+			if (returnType != null && returnType != parceledClass && !List.class.isAssignableFrom(returnType)) {
+				Object custom = createForType(returnType, list);
+				if (custom != null) {
+					return custom;
+				}
+			}
 		}
-		Class<?> returnType = method.getReturnType();
-		Class<?> baseClass = BRParceledListSlice.getRealClass();
-		if (returnType == null
-				|| returnType == baseClass
-				|| returnType == Object.class
-				|| !isParceledListSliceClass(returnType)) {
-			return create(safeList);
-		}
-
-		Object typedSlice = createTypedSlice(returnType, safeList);
-		if (typedSlice != null) {
-			return typedSlice;
-		}
-		return create(safeList);
+		return create(list);
 	}
 
-	private static Object createTypedSlice(Class<?> sliceClass, List<?> list) {
-		// 1) Constructor(List) (e.g. PackageInfoList(List<PackageInfo>))
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static Object createForType(Class<?> returnType, List<?> list) {
 		try {
-			Constructor<?> listCtor = sliceClass.getDeclaredConstructor(List.class);
-			listCtor.setAccessible(true);
-			return listCtor.newInstance(list);
+			Constructor<?> ctor = returnType.getDeclaredConstructor(List.class);
+			ctor.setAccessible(true);
+			return ctor.newInstance(list);
 		} catch (Throwable ignored) {
 		}
-
-		// 2) No-arg Constructor + append() + setLastSlice(true)
 		try {
-			Constructor<?> emptyCtor = sliceClass.getDeclaredConstructor();
+			Constructor<?> emptyCtor = returnType.getDeclaredConstructor();
 			emptyCtor.setAccessible(true);
-			Object slice = emptyCtor.newInstance();
-			Class<?> baseClass = BRParceledListSlice.getRealClass();
-			if (baseClass != null && baseClass.isInstance(slice)) {
-				for (Object item : list) {
-					BRParceledListSlice.get(slice).append(item);
-				}
-				BRParceledListSlice.get(slice).setLastSlice(true);
-				return slice;
-			}
-			Method appendMethod = findMethod(sliceClass, "append", Object.class);
-			Method setLastSliceMethod = findMethod(sliceClass, "setLastSlice", boolean.class);
-			if (appendMethod != null && setLastSliceMethod != null) {
-				appendMethod.setAccessible(true);
-				setLastSliceMethod.setAccessible(true);
-				for (Object item : list) {
-					appendMethod.invoke(slice, item);
-				}
-				setLastSliceMethod.invoke(slice, true);
-				return slice;
-			}
-		} catch (Throwable ignored) {
-		}
-
-		// 3) Parcel / CREATOR fallback
-		Object baseSlice = create(list);
-		if (baseSlice instanceof Parcelable) {
-			Parcel parcel = Parcel.obtain();
-			try {
-				((Parcelable) baseSlice).writeToParcel(parcel, 0);
-				parcel.setDataPosition(0);
+			Object instance = emptyCtor.newInstance();
+			if (list != null) {
 				try {
-					Field creatorField = sliceClass.getField("CREATOR");
-					Object creator = creatorField.get(null);
-					if (creator instanceof Parcelable.Creator) {
-						return ((Parcelable.Creator<?>) creator).createFromParcel(parcel);
+					Method append = returnType.getMethod("append", Object.class);
+					for (Object item : list) {
+						append.invoke(instance, item);
+					}
+					try {
+						Method setLastSlice = returnType.getMethod("setLastSlice", boolean.class);
+						setLastSlice.invoke(instance, true);
+					} catch (Throwable ignored) {
+					}
+					return instance;
+				} catch (Throwable ignored) {
+				}
+				try {
+					Method getList = returnType.getMethod("getList");
+					Object target = getList.invoke(instance);
+					if (target instanceof List) {
+						((List) target).addAll(list);
+						return instance;
 					}
 				} catch (Throwable ignored) {
 				}
-				parcel.setDataPosition(0);
-				try {
-					Constructor<?> parcelLoaderCtor = sliceClass.getDeclaredConstructor(Parcel.class, ClassLoader.class);
-					parcelLoaderCtor.setAccessible(true);
-					return parcelLoaderCtor.newInstance(parcel, sliceClass.getClassLoader());
-				} catch (Throwable ignored) {
+				for (Class<?> c = returnType; c != null && c != Object.class; c = c.getSuperclass()) {
+					for (Field f : c.getDeclaredFields()) {
+						if (List.class.isAssignableFrom(f.getType())) {
+							f.setAccessible(true);
+							Object cur = f.get(instance);
+							if (cur instanceof List) {
+								((List) cur).addAll(list);
+							} else {
+								f.set(instance, list);
+							}
+							return instance;
+						}
+					}
 				}
-				parcel.setDataPosition(0);
-				try {
-					Constructor<?> parcelCtor = sliceClass.getDeclaredConstructor(Parcel.class);
-					parcelCtor.setAccessible(true);
-					return parcelCtor.newInstance(parcel);
-				} catch (Throwable ignored) {
-				}
-			} catch (Throwable ignored) {
-			} finally {
-				parcel.recycle();
 			}
-		}
-
-		return null;
-	}
-
-	private static Method findMethod(Class<?> clazz, String name, Class<?>... paramTypes) {
-		Class<?> current = clazz;
-		while (current != null && current != Object.class) {
-			try {
-				return current.getDeclaredMethod(name, paramTypes);
-			} catch (NoSuchMethodException ignored) {
-				current = current.getSuperclass();
-			}
+			return instance;
+		} catch (Throwable ignored) {
 		}
 		return null;
 	}
-			}
+}
