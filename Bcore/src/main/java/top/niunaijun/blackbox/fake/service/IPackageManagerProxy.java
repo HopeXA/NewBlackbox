@@ -348,7 +348,7 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             int flags = MethodParameterUtils.toInt(args[0]);
             List<ApplicationInfo> installedApplications = BlackBoxCore.getBPackageManager().getInstalledApplications(flags, BlackBoxCore.getUserId());
-            return ParceledListSliceCompat.create(installedApplications);
+            return ParceledListSliceCompat.create(method, installedApplications);
         }
     }
 
@@ -359,7 +359,7 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             int flags = MethodParameterUtils.toInt(args[0]);
             List<PackageInfo> installedPackages = BlackBoxCore.getBPackageManager().getInstalledPackages(flags, BlackBoxCore.getUserId());
-            return ParceledListSliceCompat.create(installedPackages);
+            return ParceledListSliceCompat.create(method, installedPackages);
         }
     }
 
@@ -391,7 +391,7 @@ public class IPackageManagerProxy extends BinderInvocationStub {
             int flags = MethodParameterUtils.toInt(args[2]);
             List<ProviderInfo> providers = BlackBoxCore.getBPackageManager().
                     queryContentProviders(BlackBoxCore.getAppProcessName(), BlackBoxCore.getBUid(), flags, BlackBoxCore.getUserId());
-            return ParceledListSliceCompat.create(providers);
+            return ParceledListSliceCompat.create(method, providers);
         }
     }
 
@@ -407,7 +407,7 @@ public class IPackageManagerProxy extends BinderInvocationStub {
 
             
             if (BuildCompat.isN()) {
-                return ParceledListSliceCompat.create(resolves);
+                return ParceledListSliceCompat.create(method, resolves);
             }
 
             
@@ -497,7 +497,7 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             
-            return ParceledListSliceCompat.create(new ArrayList<>());
+            return ParceledListSliceCompat.create(method, new ArrayList<>());
         }
     }
 
@@ -557,6 +557,25 @@ public class IPackageManagerProxy extends BinderInvocationStub {
                 return method.invoke(who, args);
             }
             
+            return method.invoke(who, args);
+        }
+    }
+
+    @ProxyMethod("checkUidPermission")
+    public static class CheckUidPermission extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            String permission = args != null && args.length > 0 && args[0] instanceof String ? (String) args[0] : null;
+            if (isAudioPermission(permission)
+                    || isStorageOrMediaPermission(permission)
+                    || isNotificationOrXiaomiPermission(permission)
+                    || isNetworkPermission(permission)) {
+                return PackageManager.PERMISSION_GRANTED;
+            }
+            if (args != null && args.length > 1 && args[1] instanceof Integer
+                    && ((Integer) args[1]) == BActivityThread.getBUid()) {
+                args[1] = BlackBoxCore.getHostUid();
+            }
             return method.invoke(who, args);
         }
     }
