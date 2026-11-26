@@ -767,7 +767,7 @@ public class IActivityManagerProxy extends ClassInvocationStub {
     public static class getHistoricalProcessExitReasons extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            return ParceledListSliceCompat.create(new ArrayList<>());
+            return ParceledListSliceCompat.create(method, new ArrayList<>());
         }
     }
 
@@ -784,34 +784,55 @@ public class IActivityManagerProxy extends ClassInvocationStub {
     public static class checkPermission extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            MethodParameterUtils.replaceLastUid(args);
-            String permission = (String) args[0];
-            if (permission.equals(Manifest.permission.ACCOUNT_MANAGER)
-                    || permission.equals(Manifest.permission.SEND_SMS)) {
-                return PackageManager.PERMISSION_GRANTED;
-            }
-            
-            
-            if (isAudioPermission(permission)) {
-                Slog.d(TAG, "ActivityManager checkPermission: Granting audio permission: " + permission);
-                return PackageManager.PERMISSION_GRANTED;
-            }
-
-            
-            if (isStorageOrMediaPermission(permission)) {
-                Slog.d(TAG, "ActivityManager checkPermission: Granting storage/media permission: " + permission);
-                return PackageManager.PERMISSION_GRANTED;
-            }
-
-            if (Manifest.permission.INTERNET.equals(permission)
-                    || Manifest.permission.ACCESS_NETWORK_STATE.equals(permission)
-                    || Manifest.permission.ACCESS_WIFI_STATE.equals(permission)) {
-                Slog.d(TAG, "ActivityManager checkPermission: Granting network permission: " + permission);
-                return PackageManager.PERMISSION_GRANTED;
-            }
-            
-            return method.invoke(who, args);
+            return handleCheckPermission(who, method, args);
         }
+    }
+
+    @ProxyMethod("checkPermissionWithToken")
+    public static class CheckPermissionWithToken extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            return handleCheckPermission(who, method, args);
+        }
+    }
+
+    @ProxyMethod("checkPermissionForDevice")
+    public static class CheckPermissionForDevice extends MethodHook {
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            return handleCheckPermission(who, method, args);
+        }
+    }
+
+    private static Object handleCheckPermission(Object who, Method method, Object[] args) throws Throwable {
+        String permission = args != null && args.length > 0 && args[0] instanceof String ? (String) args[0] : null;
+        if (Manifest.permission.ACCOUNT_MANAGER.equals(permission)
+                || Manifest.permission.SEND_SMS.equals(permission)) {
+            return PackageManager.PERMISSION_GRANTED;
+        }
+        if (isAudioPermission(permission)) {
+            Slog.d(TAG, "ActivityManager checkPermission: Granting audio permission: " + permission);
+            return PackageManager.PERMISSION_GRANTED;
+        }
+        if (isStorageOrMediaPermission(permission)) {
+            Slog.d(TAG, "ActivityManager checkPermission: Granting storage/media permission: " + permission);
+            return PackageManager.PERMISSION_GRANTED;
+        }
+        if (Manifest.permission.INTERNET.equals(permission)
+                || Manifest.permission.ACCESS_NETWORK_STATE.equals(permission)
+                || Manifest.permission.ACCESS_WIFI_STATE.equals(permission)
+                || Manifest.permission.CHANGE_NETWORK_STATE.equals(permission)
+                || Manifest.permission.CHANGE_WIFI_STATE.equals(permission)) {
+            Slog.d(TAG, "ActivityManager checkPermission: Granting network permission: " + permission);
+            return PackageManager.PERMISSION_GRANTED;
+        }
+        if (args != null && args.length > 2 && args[2] instanceof Integer
+                && ((Integer) args[2]) == BActivityThread.getBUid()) {
+            args[2] = BlackBoxCore.getHostUid();
+        } else {
+            MethodParameterUtils.replaceLastUid(args);
+        }
+        return method.invoke(who, args);
     }
 
     
