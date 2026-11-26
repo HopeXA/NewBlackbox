@@ -148,7 +148,8 @@ public class IPackageManagerProxy extends BinderInvocationStub {
                         if (perm != null && (perm.equals(android.Manifest.permission.RECORD_AUDIO)
                                 || perm.equals("android.permission.FOREGROUND_SERVICE_MICROPHONE")
                                 || perm.equals(android.Manifest.permission.MODIFY_AUDIO_SETTINGS)
-                                || perm.equals(android.Manifest.permission.CAPTURE_AUDIO_OUTPUT))) {
+                                || perm.equals(android.Manifest.permission.CAPTURE_AUDIO_OUTPUT)
+                                || isNetworkPermission(perm))) {
                             packageInfo.requestedPermissionsFlags[i] |= PackageInfo.REQUESTED_PERMISSION_GRANTED;
                         }
                     }
@@ -347,7 +348,7 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             int flags = MethodParameterUtils.toInt(args[0]);
             List<ApplicationInfo> installedApplications = BlackBoxCore.getBPackageManager().getInstalledApplications(flags, BlackBoxCore.getUserId());
-            return ParceledListSliceCompat.create(method, installedApplications);
+            return ParceledListSliceCompat.create(installedApplications);
         }
     }
 
@@ -358,7 +359,7 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             int flags = MethodParameterUtils.toInt(args[0]);
             List<PackageInfo> installedPackages = BlackBoxCore.getBPackageManager().getInstalledPackages(flags, BlackBoxCore.getUserId());
-            return ParceledListSliceCompat.create(method, installedPackages);
+            return ParceledListSliceCompat.create(installedPackages);
         }
     }
 
@@ -390,7 +391,7 @@ public class IPackageManagerProxy extends BinderInvocationStub {
             int flags = MethodParameterUtils.toInt(args[2]);
             List<ProviderInfo> providers = BlackBoxCore.getBPackageManager().
                     queryContentProviders(BlackBoxCore.getAppProcessName(), BlackBoxCore.getBUid(), flags, BlackBoxCore.getUserId());
-            return ParceledListSliceCompat.create(method, providers);
+            return ParceledListSliceCompat.create(providers);
         }
     }
 
@@ -406,7 +407,7 @@ public class IPackageManagerProxy extends BinderInvocationStub {
 
             
             if (BuildCompat.isN()) {
-                return ParceledListSliceCompat.create(method, resolves);
+                return ParceledListSliceCompat.create(resolves);
             }
 
             
@@ -496,7 +497,7 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
             
-            return ParceledListSliceCompat.create(method, new ArrayList<>());
+            return ParceledListSliceCompat.create(new ArrayList<>());
         }
     }
 
@@ -550,7 +551,11 @@ public class IPackageManagerProxy extends BinderInvocationStub {
                 Slog.d(TAG, "SimpleAudioPermissionHook: Granting notification/Xiaomi permission: " + permission + " to " + packageName);
                 return PackageManager.PERMISSION_GRANTED;
             }
-            
+
+            if (isNetworkPermission(permission)) {
+                args[1] = BlackBoxCore.getHostPkg();
+                return method.invoke(who, args);
+            }
             
             return method.invoke(who, args);
         }
@@ -580,7 +585,11 @@ public class IPackageManagerProxy extends BinderInvocationStub {
                 Slog.d(TAG, "CheckSelfPermission: Granting notification/Xiaomi permission: " + permission + " to " + packageName);
                 return PackageManager.PERMISSION_GRANTED;
             }
-            
+
+            if (isNetworkPermission(permission)) {
+                args[1] = BlackBoxCore.getHostPkg();
+                return method.invoke(who, args);
+            }
             
             return method.invoke(who, args);
         }
@@ -687,6 +696,15 @@ public class IPackageManagerProxy extends BinderInvocationStub {
                 || permission.equals("android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED")
                 || permission.equals("android.permission.FOREGROUND_SERVICE_PHONE_CALL")
                 || permission.equals("android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE");
+    }
+
+    private static boolean isNetworkPermission(String permission) {
+        if (permission == null) return false;
+        return permission.equals(android.Manifest.permission.INTERNET)
+                || permission.equals(android.Manifest.permission.ACCESS_NETWORK_STATE)
+                || permission.equals(android.Manifest.permission.ACCESS_WIFI_STATE)
+                || permission.equals(android.Manifest.permission.CHANGE_NETWORK_STATE)
+                || permission.equals(android.Manifest.permission.CHANGE_WIFI_STATE);
     }
     
     
